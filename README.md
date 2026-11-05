@@ -1,4 +1,4 @@
-# Creative Design Project
+# Creative Design Project(창의설계입문)
 
 ## 과제 목록
 - [LED 슬라이더](./led-slider/) · [페이지 보기](https://hsi-yoonwon.github.io/Creative-Design-Project/led-slider/)
