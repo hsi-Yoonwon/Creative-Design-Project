@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ThingSpeak + IFTTT 알림</title>
+<meta name="description" content="ThingSpeak React와 ThingHTTP로 IFTTT Webhook을 호출해 휴대폰 알림을 보내는 과제">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+<style>
+  :root {
+    --bg: #faf8f4;
+    --surface: #ffffff;
+    --ink: #1d1b18;
+    --muted: #6b665e;
+    --line: #e7e2d8;
+    --accent: #e8590c;
+    --accent-soft: #fff1e6;
+    --green: #2f9e44;
+    --code-bg: #1f2329;
+    --glow: rgba(232, 89, 12, .35);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #15140f;
+      --surface: #1e1c17;
+      --ink: #f1ede4;
+      --muted: #a39d92;
+      --line: #322f28;
+      --accent: #ff8a3d;
+      --accent-soft: #2c1f14;
+      --green: #69db7c;
+      --code-bg: #111317;
+      --glow: rgba(255, 138, 61, .3);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #15140f; --surface: #1e1c17; --ink: #f1ede4; --muted: #a39d92;
+    --line: #322f28; --accent: #ff8a3d; --accent-soft: #2c1f14; --green: #69db7c;
+    --code-bg: #111317; --glow: rgba(255, 138, 61, .3);
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Noto Sans KR', system-ui, sans-serif;
+    font-size: 17px;
+    line-height: 1.75;
+    word-break: keep-all;
+  }
+  img, video { max-width: 100%; display: block; }
+  a { color: var(--accent); }
+  code { font-family: 'JetBrains Mono', monospace; font-size: .88em; }
+  :not(pre) > code {
+    background: var(--accent-soft);
+    color: var(--accent);
+    padding: .1em .4em;
+    border-radius: 4px;
+  }
+
+  .wrap { max-width: 920px; margin: 0 auto; padding: 0 20px; }
+
+  /* ---------- 헤더 ---------- */
+  header.hero {
+    padding: 72px 0 48px;
+    border-bottom: 1px solid var(--line);
+    position: relative;
+    overflow: hidden;
+  }
+  .hero .bulb {
+    position: absolute;
+    right: -60px; top: -60px;
+    width: 320px; height: 320px;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--glow) 0%, transparent 70%);
+    animation: breathe 4s ease-in-out infinite;
+    pointer-events: none;
+  }
+  @keyframes breathe { 0%,100% { opacity: .25; } 50% { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .hero .bulb { animation: none; opacity: .7; } }
+  .tag {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 999px;
+    padding: 2px 12px;
+    margin-bottom: 18px;
+  }
+  h1 {
+    font-size: clamp(34px, 7vw, 56px);
+    line-height: 1.15;
+    font-weight: 900;
+    margin: 0 0 16px;
+    letter-spacing: -0.02em;
+  }
+  h1 em { font-style: normal; color: var(--accent); }
+  .lead { font-size: 19px; color: var(--muted); max-width: 640px; margin: 0; }
+
+  nav.toc {
+    position: sticky; top: 0; z-index: 10;
+    background: color-mix(in srgb, var(--bg) 90%, transparent);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--line);
+  }
+  nav.toc ol {
+    list-style: none; margin: 0; padding: 0;
+    display: flex; gap: 4px; overflow-x: auto;
+    scrollbar-width: none;
+  }
+  nav.toc a {
+    display: block; white-space: nowrap;
+    padding: 12px 12px;
+    font-size: 15px; font-weight: 500;
+    color: var(--muted); text-decoration: none;
+  }
+  nav.toc a span { font-family: 'JetBrains Mono', monospace; color: var(--accent); margin-right: 6px; }
+  nav.toc a:hover { color: var(--ink); }
+
+  /* ---------- 섹션 ---------- */
+  section { padding: 64px 0 16px; scroll-margin-top: 48px; }
+  .num {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--accent); font-size: 14px; font-weight: 600;
+  }
+  h2 { font-size: clamp(26px, 4.5vw, 34px); margin: 4px 0 20px; font-weight: 900; letter-spacing: -0.01em; }
+  h3 { font-size: 20px; margin: 36px 0 10px; }
+  p { margin: 0 0 14px; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 22px 24px;
+  }
+
+  /* 흐름도 */
+  .flow {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+    margin: 28px 0;
+  }
+  .step {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px 12px;
+    text-align: center;
+    position: relative;
+  }
+  .step .ico { font-size: 26px; line-height: 1; margin-bottom: 6px; }
+  .step b { display: block; font-size: 15px; }
+  .step small { color: var(--muted); font-size: 13px; line-height: 1.5; display: block; margin-top: 2px; }
+  .step:not(:last-child)::after {
+    content: '→';
+    position: absolute; right: -10px; top: 50%;
+    transform: translate(50%, -50%);
+    color: var(--accent); font-weight: 700; font-size: 16px;
+    z-index: 1;
+  }
+  .step.hot { border-color: var(--accent); background: var(--accent-soft); }
+
+  .howto { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .howto .card { padding: 18px 20px; }
+  .howto b { color: var(--accent); }
+
+  /* 회로 */
+  figure { margin: 24px 0; }
+  figure img { border-radius: 12px; border: 1px solid var(--line); background: #fff; width: 100%; }
+  figcaption { color: var(--muted); font-size: 14px; margin-top: 8px; text-align: center; }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 500; font-size: 13px; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .wire {
+    font-family: 'JetBrains Mono', monospace; font-size: 14px;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  }
+  .wire span { background: var(--accent-soft); border-radius: 6px; padding: 3px 9px; }
+  .wire i { font-style: normal; color: var(--accent); }
+
+  /* 코드 */
+  pre {
+    margin: 12px 0 20px;
+    border-radius: 12px;
+    overflow-x: auto;
+    background: var(--code-bg);
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  pre code { display: block; color: #abb2bf; padding: 18px 20px; font-size: 14px; }
+  pre code.hljs { background: transparent; padding: 18px 20px; font-size: 14px; }
+  .file {
+    font-family: 'JetBrains Mono', monospace; font-size: 13px;
+    color: var(--muted); margin: 20px 0 -6px;
+  }
+  details {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface);
+    margin: 14px 0;
+  }
+  details summary {
+    cursor: pointer; padding: 14px 18px; font-weight: 700;
+    list-style: none; display: flex; justify-content: space-between; align-items: center;
+  }
+  details summary::-webkit-details-marker { display: none; }
+  details summary::after { content: '+'; color: var(--accent); font-size: 22px; font-weight: 400; }
+  details[open] summary::after { content: '−'; }
+  details pre { margin: 0 12px 12px; }
+  .dl { font-size: 14px; font-weight: 500; margin-left: auto; margin-right: 14px; }
+
+  .explain { display: grid; gap: 14px; }
+  .explain .card h4 { margin: 0 0 6px; font-size: 17px; }
+  .explain .card p:last-child { margin-bottom: 0; }
+
+  .explain > *, .two > *, .howto > *, .trouble > *, .flow > * { min-width: 0; }
+
+  /* 영상 */
+  .video {
+    border-radius: 14px; overflow: hidden;
+    border: 1px solid var(--line); background: #000;
+  }
+  .video video { width: 100%; }
+
+  /* 어려웠던 점 */
+  .trouble { display: grid; gap: 16px; }
+  .trouble .card { border-left: 4px solid var(--accent); }
+  .trouble h4 { margin: 0 0 10px; font-size: 18px; }
+  .trouble dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 16px; }
+  .trouble dt { font-weight: 700; color: var(--muted); font-size: 14px; padding-top: 2px; white-space: nowrap; }
+  .trouble dd { margin: 0; }
+  .trouble dt.fix { color: var(--green); }
+  .reflect {
+    margin-top: 28px;
+    background: var(--accent-soft);
+    border-radius: 14px;
+    padding: 24px 26px;
+  }
+  .reflect h3 { margin-top: 0; }
+  .reflect p:last-child { margin-bottom: 0; }
+
+  footer {
+    margin-top: 72px; padding: 28px 0 48px;
+    border-top: 1px solid var(--line);
+    color: var(--muted); font-size: 14px;
+  }
+
+  @media (max-width: 720px) {
+    body { font-size: 16px; }
+    header.hero { padding: 48px 0 36px; }
+    .flow { grid-template-columns: 1fr; gap: 14px; }
+    .step { display: flex; align-items: center; gap: 14px; text-align: left; }
+    .step .ico { margin: 0; }
+    .step:not(:last-child)::after {
+      content: '↓'; right: auto; left: 50%; top: auto; bottom: -14px;
+      transform: translateX(-50%);
+    }
+    .howto, .two { grid-template-columns: 1fr; }
+    .card { padding: 18px; }
+    .trouble dl { grid-template-columns: 1fr; gap: 2px; }
+    .trouble dd { margin-bottom: 8px; }
+  }
+</style>
+<style>
+  .shot { margin: 20px 0; }
+  .shot .ph {
+    display: none;
+    border: 2px dashed var(--line); border-radius: 12px;
+    padding: 36px 16px; text-align: center; color: var(--muted); font-size: 15px;
+  }
+  .shot.missing img { display: none; }
+  .shot.missing .ph { display: block; }
+  .url { word-break: break-all; }
+  .note { font-size: 15px; color: var(--muted); }
+  .note b { color: var(--ink); }
+  .flow.six { grid-template-columns: repeat(5, 1fr); }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="bulb" aria-hidden="true"></div>
+  <div class="wrap">
+    <span class="tag">ThingSpeak · IFTTT · Webhooks</span>
+    <h1>값이 너무 높으면<br><em>휴대폰으로 알림</em></h1>
+    <p class="lead">ThingSpeak 채널에 기록된 가변저항 값이 800을 넘으면 ThingHTTP가 IFTTT Webhook을 호출하고, 휴대폰 IFTTT 앱으로 알림이 옵니다.</p>
+  </div>
+</header>
+
+<nav class="toc">
+  <div class="wrap">
+    <ol>
+      <li><a href="#about"><span>01</span>전체 흐름</a></li>
+      <li><a href="#ifttt"><span>02</span>IFTTT Applet</a></li>
+      <li><a href="#thinghttp"><span>03</span>ThingHTTP</a></li>
+      <li><a href="#react"><span>04</span>React</a></li>
+      <li><a href="#request"><span>05</span>API Request</a></li>
+      <li><a href="#result"><span>06</span>알림 확인</a></li>
+      <li><a href="#review"><span>07</span>어려웠던 점</a></li>
+    </ol>
+  </div>
+</nav>
+
+<main class="wrap">
+
+  <!-- 01 -->
+  <section id="about">
+    <div class="num">01</div>
+    <h2>어떻게 연결되나요?</h2>
+    <p>채널에 값이 들어오면 ThingSpeak가 스스로 조건을 검사하고, 조건을 만족할 때만 IFTTT로 신호를 보냅니다. 아두이노나 PC 프로그램이 따로 알림을 보내지 않아도, <strong>클라우드끼리 웹 주소(URL)를 호출하는 것만으로</strong> 휴대폰 알림까지 이어집니다.</p>
+
+    <div class="flow" role="list">
+      <div class="step" role="listitem"><div class="ico">📝</div><div><b>API Request</b><small>채널 field1에 값 기록</small></div></div>
+      <div class="step hot" role="listitem"><div class="ico">⚖️</div><div><b>React</b><small>field1 &gt; 800 검사</small></div></div>
+      <div class="step" role="listitem"><div class="ico">🌐</div><div><b>ThingHTTP</b><small>Webhook URL 호출</small></div></div>
+      <div class="step" role="listitem"><div class="ico">🔗</div><div><b>IFTTT Applet</b><small>toohigh 이벤트 수신</small></div></div>
+      <div class="step" role="listitem"><div class="ico">📱</div><div><b>휴대폰</b><small>IFTTT 앱 알림</small></div></div>
+    </div>
+
+    <div class="card">
+      <table>
+        <tr><th>구성 요소</th><th>설정</th></tr>
+        <tr><td>ThingSpeak 채널</td><td>My pot and LED (field1: 가변저항)</td></tr>
+        <tr><td>React 조건</td><td>field1 <code>is greater than</code> 800</td></tr>
+        <tr><td>ThingHTTP 이름</td><td>Too high value</td></tr>
+        <tr><td>IFTTT 이벤트 이름</td><td><code>toohigh</code></td></tr>
+      </table>
+    </div>
+  </section>
+
+  <!-- 02 -->
+  <section id="ifttt">
+    <div class="num">02</div>
+    <h2>IFTTT Applet 만들기</h2>
+    <p>IFTTT는 "<strong>이것</strong>이 일어나면 <strong>저것</strong>을 한다"는 규칙(Applet)을 만드는 서비스입니다. 여기서는 "<em>toohigh</em>라는 웹 요청을 받으면 → 휴대폰에 알림을 보낸다"로 설정했습니다.</p>
+
+    <div class="two">
+      <div class="card">
+        <h4 style="margin:0 0 8px">If This — 조건</h4>
+        <p style="margin:0">Webhooks → <b>Receive a web request</b><br>Event Name: <code>toohigh</code></p>
+      </div>
+      <div class="card">
+        <h4 style="margin:0 0 8px">Then That — 실행</h4>
+        <p style="margin:0">Notifications → <b>Send a notification from the IFTTT app</b><br>Message: <code>지금 높은 곳에 있네요!</code></p>
+      </div>
+    </div>
+
+    <figure class="shot">
+      <img src="media/ifttt-applet.png" alt="IFTTT Applet 설정 화면" onerror="this.parentElement.classList.add('missing')">
+      <div class="ph">media/ifttt-applet.png — IFTTT Applet 화면 캡처</div>
+      <figcaption>IFTTT Applet 설정</figcaption>
+    </figure>
+
+    <h3>Webhook 주소</h3>
+    <p>내 Webhook 키는 <code>ifttt.com/maker_webhooks</code> → Documentation에서 확인합니다. 이 주소를 호출하면 Applet이 실행됩니다.</p>
+    <pre><code class="url">https://maker.ifttt.com/trigger/toohigh/with/key/{웹훅키}</code></pre>
+    <p class="note">브라우저 주소창에 이 주소를 직접 넣었을 때 <b>Congratulations! You've fired the toohigh event</b>가 뜨고 휴대폰 알림이 오면 IFTTT 쪽 설정은 끝난 것입니다.</p>
+  </section>
+
+  <!-- 03 -->
+  <section id="thinghttp">
+    <div class="num">03</div>
+    <h2>ThingHTTP — Webhook 연결</h2>
+    <p>ThingHTTP는 ThingSpeak가 대신 호출해 줄 <strong>웹 요청을 미리 저장해 두는 기능</strong>입니다. 위의 IFTTT Webhook 주소를 등록해 두면, 나중에 React가 이 요청을 실행합니다.</p>
+
+    <div class="card">
+      <table>
+        <tr><th>항목</th><th>값</th></tr>
+        <tr><td>Name</td><td>Too high value</td></tr>
+        <tr><td>URL</td><td class="url"><code>https://maker.ifttt.com/trigger/toohigh/with/key/{웹훅키}</code></td></tr>
+        <tr><td>Method</td><td>POST</td></tr>
+        <tr><td>Content Type</td><td>application/json</td></tr>
+        <tr><td>HTTP Version</td><td>1.1</td></tr>
+      </table>
+    </div>
+
+    <p class="file">Body</p>
+    <pre><code class="language-json">{
+"value1":"%%channel_3565318_field_1%%"
+}</code></pre>
+    <p class="note"><code>%%channel_3565318_field_1%%</code> 자리에는 호출 순간의 field1 값이 채워져 IFTTT로 <code>value1</code>이라는 이름으로 전달됩니다.</p>
+
+    <figure class="shot">
+      <img src="media/thinghttp.png" alt="ThingSpeak ThingHTTP 설정 화면" onerror="this.parentElement.classList.add('missing')">
+      <div class="ph">media/thinghttp.png — ThingHTTP 화면 캡처</div>
+      <figcaption>ThingHTTP 설정</figcaption>
+    </figure>
+  </section>
+
+  <!-- 04 -->
+  <section id="react">
+    <div class="num">04</div>
+    <h2>React — 호출 조건 등록</h2>
+    <p>React는 채널에 새 값이 들어올 때마다 조건을 검사하고, 조건을 만족하면 정해진 동작(ThingHTTP)을 실행합니다.</p>
+
+    <div class="card">
+      <table>
+        <tr><th>항목</th><th>값</th></tr>
+        <tr><td>Condition Type</td><td>Numeric</td></tr>
+        <tr><td>Test Frequency</td><td>On Data Insertion (값이 들어올 때마다)</td></tr>
+        <tr><td>Condition</td><td>My pot and LED · field 1 (가변저항) · is greater than · <b>800</b></td></tr>
+        <tr><td>Action</td><td>ThingHTTP → Too high value</td></tr>
+        <tr><td>Options</td><td>Run action each time condition is met</td></tr>
+      </table>
+    </div>
+
+    <figure class="shot">
+      <img src="media/react.png" alt="ThingSpeak React 설정 화면" onerror="this.parentElement.classList.add('missing')">
+      <div class="ph">media/react.png — React 화면 캡처</div>
+      <figcaption>React 설정</figcaption>
+    </figure>
+  </section>
+
+  <!-- 05 -->
+  <section id="request">
+    <div class="num">05</div>
+    <h2>API Request — 채널에 값 기록</h2>
+    <p>채널의 <b>API Keys</b> 탭에 있는 <b>Write API Key</b>로 아래 주소를 호출하면 field1에 값이 기록됩니다. 조건(800 초과)을 만족하도록 900을 보냈습니다.</p>
+    <pre><code class="url">https://api.thingspeak.com/update?api_key={Write_API_Key}&amp;field1=900</code></pre>
+
+    <div class="howto">
+      <div class="card"><b>1 이상의 숫자</b><br>기록 성공. 숫자는 몇 번째 기록인지(entry 번호)를 뜻합니다.</div>
+      <div class="card"><b>0</b><br>기록 실패. 키가 틀렸거나 15초 기록 제한에 걸린 경우입니다.</div>
+      <div class="card"><b>800 이하</b><br>기록은 되지만 React 조건을 만족하지 않아 알림이 오지 않습니다.</div>
+    </div>
+
+    <figure class="shot">
+      <img src="media/api-request.png" alt="API Request 호출 결과 화면" onerror="this.parentElement.classList.add('missing')">
+      <div class="ph">media/api-request.png — 브라우저 호출 결과 캡처</div>
+      <figcaption>API Request 호출 결과</figcaption>
+    </figure>
+  </section>
+
+  <!-- 06 -->
+  <section id="result">
+    <div class="num">06</div>
+    <h2>휴대폰 알림 확인</h2>
+    <p>값을 기록하고 몇 초 뒤 휴대폰 IFTTT 앱으로 알림이 도착했습니다.</p>
+    <figure class="shot" style="max-width:380px;margin-left:auto;margin-right:auto">
+      <img src="media/notification.png" alt="휴대폰에 도착한 IFTTT 알림" onerror="this.parentElement.classList.add('missing')">
+      <div class="ph">media/notification.png — 휴대폰 알림 캡처</div>
+      <figcaption>IFTTT 앱 알림</figcaption>
+    </figure>
+  </section>
+
+  <!-- 07 -->
+  <section id="review">
+    <div class="num">07</div>
+    <h2>어려웠던 점과 고민</h2>
+
+    <div class="trouble">
+      <div class="card">
+        <h4>Webhook을 호출해도 알림이 오지 않음</h4>
+        <dl>
+          <dt>문제</dt><dd>영상을 따라 설정했는데 휴대폰에 알림이 전혀 오지 않았습니다.</dd>
+          <dt>원인</dt><dd>주소가 <code>.../trigger/toohigh/<b>json</b>/with/key/...</code>로 되어 있었습니다. <code>/json</code> 주소는 "JSON payload" 트리거용이라, <b>Receive a web request</b>로 만든 Applet은 실행되지 않았습니다.</dd>
+          <dt class="fix">해결</dt><dd>URL에서 <code>/json</code>을 지웠습니다.</dd>
+        </dl>
+      </div>
+
+      <div class="card">
+        <h4>값을 기록해도 React가 반응하지 않음</h4>
+        <dl>
+          <dt>문제</dt><dd>값 기록은 성공했는데 알림이 오지 않았습니다.</dd>
+          <dt>원인</dt><dd>React 조건이 <code>&gt; 800</code>인데 그보다 작은 값을 보냈고, Options가 <code>only the first time</code>이라 이미 한 번 실행된 뒤로는 다시 실행되지 않았습니다.</dd>
+          <dt class="fix">해결</dt><dd>900을 보내고, React를 <code>each time</code>으로 새로 만들었습니다.</dd>
+        </dl>
+      </div>
+
+      <div class="card">
+        <h4>API Request 결과가 0</h4>
+        <dl>
+          <dt>문제</dt><dd>주소를 호출하면 브라우저에 0만 나왔습니다.</dd>
+          <dt>원인</dt><dd>무료 계정은 약 15초에 한 번만 기록할 수 있어서, 너무 빨리 다시 보내면 거절됩니다.</dd>
+          <dt class="fix">해결</dt><dd>15초 이상 기다린 뒤 보내자 entry 번호가 나왔습니다.</dd>
+        </dl>
+      </div>
+    </div>
+
+    <div class="reflect">
+      <h3>느낀 점</h3>
+      <p>단계가 여러 개라 알림이 안 올 때 어디가 문제인지 알기 어려웠습니다. 그래서 <b>IFTTT 주소 직접 호출 → ThingHTTP만 단독 실행 → 채널에 값 기록</b> 순서로 한 구간씩 따로 테스트했고, 덕분에 문제가 React에 있다는 것을 찾을 수 있었습니다.</p>
+      <p>또 서로 다른 회사의 서비스가 URL 하나로 연결된다는 점이 인상적이었습니다. 한쪽은 주소를 부르고 다른 쪽은 그 주소를 기다리기만 하면 되기 때문에, 이벤트 이름이나 <code>/json</code> 같은 글자 하나만 달라도 연결이 끊어진다는 것을 배웠습니다.</p>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">ThingSpeak · ThingHTTP · React · IFTTT Webhooks</div>
+  <div class="wrap">202601540 양태윤</div>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>
+  try { hljs.highlightAll(); } catch (e) {}
+</script>
+</body>
+</html>
